@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node dist/main.js",
     "build": "tsc",
+    "dev": "tsc && node dist/main.js",
     "watch": "tsc -w",
     "test": "jest",
     "test:e2e": "jest --config ./test/jest-e2e.json"
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.9",
+    "@types/express": "^5.0.5",
     "jest": "^30.2.0",
     "prisma": "^6.19.0",
     "supertest": "^7.1.4",
