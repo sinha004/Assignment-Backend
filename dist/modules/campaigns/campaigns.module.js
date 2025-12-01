@@ -10,11 +10,13 @@ exports.CampaignsModule = void 0;
 const common_1 = require("@nestjs/common");
 const campaigns_controller_1 = require("./campaigns.controller");
 const campaigns_service_1 = require("./campaigns.service");
+const queue_module_1 = require("../../queue/queue.module");
 let CampaignsModule = class CampaignsModule {
 };
 exports.CampaignsModule = CampaignsModule;
 exports.CampaignsModule = CampaignsModule = __decorate([
     (0, common_1.Module)({
+        imports: [queue_module_1.QueueModule],
         controllers: [campaigns_controller_1.CampaignsController],
         providers: [campaigns_service_1.CampaignsService],
         exports: [campaigns_service_1.CampaignsService],

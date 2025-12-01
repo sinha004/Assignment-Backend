@@ -7,6 +7,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { CampaignsService } from './campaigns.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -207,6 +209,123 @@ export class CampaignsController {
   })
   async testN8nConnection() {
     return this.campaignsService.testN8nConnection();
+  }
+
+  @Get('queue/stats')
+  @ApiOperation({ summary: 'Get campaign execution queue statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Queue statistics retrieved successfully',
+  })
+  async getQueueStats() {
+    return this.campaignsService.getQueueStats();
+  }
+
+  @Get(':id/progress')
+  @ApiOperation({ summary: 'Get campaign execution progress' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campaign progress retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async getProgress(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.getProgress(id, req.user.userId);
+  }
+
+  @Get(':id/executions')
+  @ApiOperation({ summary: 'Get individual execution records for a campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status (pending, processing, success, failed)' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page' })
+  @ApiResponse({
+    status: 200,
+    description: 'Execution records retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async getExecutions(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.campaignsService.getExecutions(id, req.user.userId, {
+      status,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Post(':id/schedule')
+  @ApiOperation({ summary: 'Schedule a campaign for execution' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campaign scheduled successfully',
+    type: CampaignResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid scheduling request' })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async scheduleCampaign(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body() body: { scheduledAt: string },
+  ) {
+    return this.campaignsService.scheduleCampaign(id, req.user.userId, body.scheduledAt);
+  }
+
+  @Post(':id/run-now')
+  @ApiOperation({ summary: 'Run a campaign immediately' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campaign started successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Cannot run campaign' })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async runCampaignNow(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.runCampaignNow(id, req.user.userId);
+  }
+
+  @Post(':id/pause')
+  @ApiOperation({ summary: 'Pause a running campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campaign paused successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Cannot pause campaign' })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async pauseCampaign(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.pauseCampaign(id, req.user.userId);
+  }
+
+  @Post(':id/resume')
+  @ApiOperation({ summary: 'Resume a paused campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Campaign resumed successfully',
+  })
+  @ApiResponse({ status: 400, description: 'Cannot resume campaign' })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async resumeCampaign(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.resumeCampaign(id, req.user.userId);
+  }
+
+  @Post(':id/retry-failed')
+  @ApiOperation({ summary: 'Retry all failed executions for a campaign' })
+  @ApiParam({ name: 'id', description: 'Campaign ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Failed executions re-queued successfully',
+  })
+  @ApiResponse({ status: 400, description: 'No workflow deployed' })
+  @ApiResponse({ status: 404, description: 'Campaign not found' })
+  async retryFailedExecutions(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.retryFailedExecutions(id, req.user.userId);
   }
 
   @Delete(':id')

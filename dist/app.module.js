@@ -18,6 +18,8 @@ const campaigns_module_1 = require("./modules/campaigns/campaigns.module");
 const health_module_1 = require("./modules/health/health.module");
 const cache_module_1 = require("./cache/cache.module");
 const n8n_module_1 = require("./services/n8n/n8n.module");
+const queue_module_1 = require("./queue/queue.module");
+const scheduler_module_1 = require("./scheduler/scheduler.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -30,6 +32,8 @@ exports.AppModule = AppModule = __decorate([
             }),
             cache_module_1.CacheModule,
             n8n_module_1.N8nModule,
+            queue_module_1.QueueModule,
+            scheduler_module_1.SchedulerModule,
             auth_module_1.AuthModule,
             users_module_1.UsersModule,
             segments_module_1.SegmentsModule,

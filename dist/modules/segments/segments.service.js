@@ -48,11 +48,13 @@ let SegmentsService = class SegmentsService {
         }
         // Upload to S3
         const { s3Url, s3Key } = await this.s3Service.uploadFile(file.buffer, file.originalname, 'text/csv');
+        // Use custom name if provided, otherwise use filename without extension
+        const finalName = (segmentName === null || segmentName === void 0 ? void 0 : segmentName.trim()) || file.originalname.replace('.csv', '');
         // Save to database
         const segment = await this.prisma.segment.create({
             data: {
                 userId,
-                name: segmentName || file.originalname.replace('.csv', ''),
+                name: finalName,
                 s3Url,
                 s3Key,
                 fileName: file.originalname,
@@ -62,6 +64,7 @@ let SegmentsService = class SegmentsService {
             },
         });
         // Invalidate user's segments cache
+        console.log(`Segment created: ${segment.id}, name: ${segment.name}, invalidating cache for user ${userId}`);
         await this.cacheService.invalidateUserResource(userId, 'segments');
         return segment;
     }

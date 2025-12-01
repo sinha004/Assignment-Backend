@@ -26,4 +26,13 @@ export class CreateCampaignDto {
   @IsNotEmpty()
   @IsDateString()
   endDate: string;
+
+  @ApiProperty({ 
+    description: 'Scheduled date and time to start the campaign', 
+    example: '2025-12-01T09:00:00Z',
+    required: false 
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
 }

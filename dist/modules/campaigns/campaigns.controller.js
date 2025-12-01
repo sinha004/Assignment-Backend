@@ -65,6 +65,34 @@ let CampaignsController = class CampaignsController {
     async testN8nConnection() {
         return this.campaignsService.testN8nConnection();
     }
+    async getQueueStats() {
+        return this.campaignsService.getQueueStats();
+    }
+    async getProgress(id, req) {
+        return this.campaignsService.getProgress(id, req.user.userId);
+    }
+    async getExecutions(id, req, status, page, limit) {
+        return this.campaignsService.getExecutions(id, req.user.userId, {
+            status,
+            page: page ? parseInt(page, 10) : undefined,
+            limit: limit ? parseInt(limit, 10) : undefined,
+        });
+    }
+    async scheduleCampaign(id, req, body) {
+        return this.campaignsService.scheduleCampaign(id, req.user.userId, body.scheduledAt);
+    }
+    async runCampaignNow(id, req) {
+        return this.campaignsService.runCampaignNow(id, req.user.userId);
+    }
+    async pauseCampaign(id, req) {
+        return this.campaignsService.pauseCampaign(id, req.user.userId);
+    }
+    async resumeCampaign(id, req) {
+        return this.campaignsService.resumeCampaign(id, req.user.userId);
+    }
+    async retryFailedExecutions(id, req) {
+        return this.campaignsService.retryFailedExecutions(id, req.user.userId);
+    }
     async delete(id, req) {
         return this.campaignsService.delete(id, req.user.userId);
     }
@@ -270,6 +298,135 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], CampaignsController.prototype, "testN8nConnection", null);
+__decorate([
+    (0, common_1.Get)('queue/stats'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get campaign execution queue statistics' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Queue statistics retrieved successfully',
+    }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "getQueueStats", null);
+__decorate([
+    (0, common_1.Get)(':id/progress'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get campaign execution progress' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Campaign progress retrieved successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "getProgress", null);
+__decorate([
+    (0, common_1.Get)(':id/executions'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get individual execution records for a campaign' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiQuery)({ name: 'status', required: false, description: 'Filter by status (pending, processing, success, failed)' }),
+    (0, swagger_1.ApiQuery)({ name: 'page', required: false, description: 'Page number' }),
+    (0, swagger_1.ApiQuery)({ name: 'limit', required: false, description: 'Items per page' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Execution records retrieved successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __param(2, (0, common_1.Query)('status')),
+    __param(3, (0, common_1.Query)('page')),
+    __param(4, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, String, String, String]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "getExecutions", null);
+__decorate([
+    (0, common_1.Post)(':id/schedule'),
+    (0, swagger_1.ApiOperation)({ summary: 'Schedule a campaign for execution' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Campaign scheduled successfully',
+        type: campaign_response_dto_1.CampaignResponseDto,
+    }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Invalid scheduling request' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "scheduleCampaign", null);
+__decorate([
+    (0, common_1.Post)(':id/run-now'),
+    (0, swagger_1.ApiOperation)({ summary: 'Run a campaign immediately' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Campaign started successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Cannot run campaign' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "runCampaignNow", null);
+__decorate([
+    (0, common_1.Post)(':id/pause'),
+    (0, swagger_1.ApiOperation)({ summary: 'Pause a running campaign' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Campaign paused successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Cannot pause campaign' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "pauseCampaign", null);
+__decorate([
+    (0, common_1.Post)(':id/resume'),
+    (0, swagger_1.ApiOperation)({ summary: 'Resume a paused campaign' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Campaign resumed successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'Cannot resume campaign' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "resumeCampaign", null);
+__decorate([
+    (0, common_1.Post)(':id/retry-failed'),
+    (0, swagger_1.ApiOperation)({ summary: 'Retry all failed executions for a campaign' }),
+    (0, swagger_1.ApiParam)({ name: 'id', description: 'Campaign ID' }),
+    (0, swagger_1.ApiResponse)({
+        status: 200,
+        description: 'Failed executions re-queued successfully',
+    }),
+    (0, swagger_1.ApiResponse)({ status: 400, description: 'No workflow deployed' }),
+    (0, swagger_1.ApiResponse)({ status: 404, description: 'Campaign not found' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], CampaignsController.prototype, "retryFailedExecutions", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, swagger_1.ApiOperation)({ summary: 'Delete a campaign' }),

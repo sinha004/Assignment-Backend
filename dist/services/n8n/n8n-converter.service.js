@@ -120,12 +120,18 @@ let N8nConverterService = class N8nConverterService {
                     },
                 };
             case 'sendEmail':
+                // Gmail node v2.1 parameters
+                // Convert {{variable}} to n8n expression format ={{ $json.variable }}
+                const toEmail = this.convertToN8nExpression(properties.to || properties.sendTo || '');
+                const emailSubject = this.convertToN8nExpression(properties.subject || '');
+                const emailMessage = this.convertToN8nExpression(properties.message || properties.body || '');
                 return {
                     resource: 'message',
                     operation: 'send',
-                    sendTo: this.convertVariables(properties.to || ''),
-                    subject: this.convertVariables(properties.subject || ''),
-                    message: this.convertVariables(properties.body || ''),
+                    sendTo: toEmail,
+                    subject: emailSubject,
+                    emailType: 'text', // or 'html'
+                    message: emailMessage,
                     options: {
                         appendAttribution: false,
                     },
@@ -149,10 +155,10 @@ let N8nConverterService = class N8nConverterService {
                         conditions: [
                             {
                                 id: this.generateId(),
-                                leftValue: this.convertVariables(properties.field || ''),
+                                leftValue: this.convertToN8nExpression(properties.field || ''),
                                 rightValue: isBooleanComparison
                                     ? (properties.value === 'true')
-                                    : this.convertVariables(properties.value || ''),
+                                    : this.convertToN8nExpression(properties.value || ''),
                                 operator: operatorInfo,
                             },
                         ],
@@ -178,12 +184,12 @@ let N8nConverterService = class N8nConverterService {
             case 'httpRequest':
                 return {
                     method: properties.method || 'GET',
-                    url: this.convertVariables(properties.url || ''),
+                    url: this.convertToN8nExpression(properties.url || ''),
                     sendHeaders: !!properties.headers,
                     headerParameters: this.parseJsonSafe(properties.headers),
                     sendBody: !!properties.body,
                     specifyBody: 'json',
-                    jsonBody: this.convertVariables(properties.body || '{}'),
+                    jsonBody: this.convertToN8nExpression(properties.body || '{}'),
                     options: {},
                 };
             case 'code':
@@ -264,6 +270,29 @@ return items;`;
             return text;
         // Convert {{variableName}} to ={{ $json.variableName }}
         return text.replace(/\{\{(\w+)\}\}/g, '={{ $json.$1 }}');
+    }
+    /**
+     * Convert template variables to n8n expression format
+     * Handles {{variable}} -> ={{ $json.body.variable }}
+     * n8n webhook places POST body data under $json.body
+     */
+    convertToN8nExpression(text) {
+        if (!text || typeof text !== 'string')
+            return text || '';
+        // Check if the text contains any template variables
+        const hasVariables = /\{\{[\w.]+\}\}/.test(text);
+        if (!hasVariables) {
+            return text;
+        }
+        // Replace all {{variableName}} with {{ $json.body.variableName }}
+        // n8n webhook receives POST data under $json.body
+        let result = text.replace(/\{\{([\w.]+)\}\}/g, '{{ $json.body.$1 }}');
+        // Wrap entire string as expression if it contains variables
+        // n8n expressions start with =
+        if (result !== text) {
+            result = '=' + result;
+        }
+        return result;
     }
     /**
      * Map custom condition operators to n8n operators

@@ -58,11 +58,14 @@ export class SegmentsService {
       'text/csv',
     );
 
+    // Use custom name if provided, otherwise use filename without extension
+    const finalName = segmentName?.trim() || file.originalname.replace('.csv', '');
+
     // Save to database
     const segment = await this.prisma.segment.create({
       data: {
         userId,
-        name: segmentName || file.originalname.replace('.csv', ''),
+        name: finalName,
         s3Url,
         s3Key,
         fileName: file.originalname,
@@ -73,6 +76,7 @@ export class SegmentsService {
     });
 
     // Invalidate user's segments cache
+    console.log(`Segment created: ${segment.id}, name: ${segment.name}, invalidating cache for user ${userId}`);
     await this.cacheService.invalidateUserResource(userId, 'segments');
 
     return segment;

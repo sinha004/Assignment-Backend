@@ -57,6 +57,17 @@ model Campaign {
   totalSent          Int       @default(0) @map("total_sent")
   totalFailed        Int       @default(0) @map("total_failed")
   
+  // Scheduling fields
+  scheduledAt        DateTime? @map("scheduled_at")
+  startedAt          DateTime? @map("started_at")
+  completedAt        DateTime? @map("completed_at")
+  
+  // Progress tracking fields
+  totalRecipients    Int       @default(0) @map("total_recipients")
+  processedCount     Int       @default(0) @map("processed_count")
+  successCount       Int       @default(0) @map("success_count")
+  failedCount        Int       @default(0) @map("failed_count")
+  
   // Flow Builder fields
   flowData           Json?     @map("flow_data")
   flowVersion        Int       @default(0) @map("flow_version")
@@ -70,8 +81,28 @@ model Campaign {
   executionCount     Int       @default(0) @map("execution_count")
   lastExecutedAt     DateTime? @map("last_executed_at")
   
+  // Execution tracking
+  executions         CampaignExecution[]
+  
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@map("campaigns")
+}
+
+model CampaignExecution {
+  id              String    @id @default(uuid())
+  campaignId      String    @map("campaign_id")
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email           String
+  name            String?
+  status          String    @default("pending") // pending, processing, success, failed
+  error           String?
+  attempts        Int       @default(0)
+  n8nExecutionId  String?   @map("n8n_execution_id")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([campaignId, status])
+  @@map("campaign_executions")
 }

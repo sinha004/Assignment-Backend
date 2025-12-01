@@ -50,13 +50,32 @@ export class CacheService {
    */
   async delPattern(pattern: string): Promise<void> {
     try {
-      // For cache-manager v6, we need to access the underlying store
+      // For cache-manager v6 with ioredis, we need to access the underlying store
       const cacheStore = this.cacheManager as any;
-      if (cacheStore.store && cacheStore.store.client && typeof cacheStore.store.client.keys === 'function') {
-        const keys = await cacheStore.store.client.keys(pattern);
+      
+      // Try different ways to access the Redis client
+      let client = null;
+      
+      if (cacheStore.store?.client) {
+        client = cacheStore.store.client;
+      } else if (cacheStore.stores?.[0]?.client) {
+        client = cacheStore.stores[0].client;
+      } else if (cacheStore.store?.getClient) {
+        client = cacheStore.store.getClient();
+      }
+      
+      if (client && typeof client.keys === 'function') {
+        const keys = await client.keys(pattern);
         if (keys && keys.length > 0) {
+          console.log(`Deleting ${keys.length} cache keys matching pattern: ${pattern}`);
           await Promise.all(keys.map((key: string) => this.cacheManager.del(key)));
         }
+      } else {
+        // Fallback: if we can't access the client for pattern matching,
+        // just delete the specific key without the wildcard
+        const specificKey = pattern.replace('*', '');
+        console.log(`Pattern delete not available, deleting specific key: ${specificKey}`);
+        await this.cacheManager.del(specificKey);
       }
     } catch (error) {
       console.error(`Cache delete pattern error for ${pattern}:`, (error as Error).message);
@@ -117,6 +136,12 @@ export class CacheService {
    * Invalidate cache for a specific user resource
    */
   async invalidateUserResource(userId: number, resource: string): Promise<void> {
+    // First try to delete the exact key (for list endpoints)
+    const exactKey = this.getUserKey(userId, resource);
+    console.log(`Invalidating cache for user ${userId} resource ${resource}, key: ${exactKey}`);
+    await this.del(exactKey);
+    
+    // Also try pattern-based deletion for related keys
     await this.delPattern(`user:${userId}:${resource}*`);
   }
 }

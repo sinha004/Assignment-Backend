@@ -6,16 +6,21 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ExampleModule = void 0;
+exports.SchedulerModule = void 0;
 const common_1 = require("@nestjs/common");
-const example_controller_1 = require("./example.controller");
-const example_service_1 = require("./example.service");
-let ExampleModule = class ExampleModule {
+const schedule_1 = require("@nestjs/schedule");
+const scheduler_service_1 = require("./scheduler.service");
+const queue_module_1 = require("../queue/queue.module");
+let SchedulerModule = class SchedulerModule {
 };
-exports.ExampleModule = ExampleModule;
-exports.ExampleModule = ExampleModule = __decorate([
+exports.SchedulerModule = SchedulerModule;
+exports.SchedulerModule = SchedulerModule = __decorate([
     (0, common_1.Module)({
-        controllers: [example_controller_1.ExampleController],
-        providers: [example_service_1.ExampleService],
+        imports: [
+            schedule_1.ScheduleModule.forRoot(),
+            queue_module_1.QueueModule,
+        ],
+        providers: [scheduler_service_1.SchedulerService],
+        exports: [scheduler_service_1.SchedulerService],
     })
-], ExampleModule);
+], SchedulerModule);

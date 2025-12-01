@@ -16,16 +16,18 @@ const client_1 = require("@prisma/client");
 const cache_service_1 = require("../../cache/cache.service");
 const n8n_api_service_1 = require("../../services/n8n/n8n-api.service");
 const n8n_converter_service_1 = require("../../services/n8n/n8n-converter.service");
+const campaign_execution_producer_1 = require("../../queue/campaign-execution.producer");
 let CampaignsService = CampaignsService_1 = class CampaignsService {
-    constructor(cacheService, n8nApiService, n8nConverterService) {
+    constructor(cacheService, n8nApiService, n8nConverterService, campaignExecutionProducer) {
         this.cacheService = cacheService;
         this.n8nApiService = n8nApiService;
         this.n8nConverterService = n8nConverterService;
+        this.campaignExecutionProducer = campaignExecutionProducer;
         this.logger = new common_1.Logger(CampaignsService_1.name);
         this.prisma = new client_1.PrismaClient();
     }
     async create(userId, createCampaignDto) {
-        const { segmentId, name, description, startDate, endDate } = createCampaignDto;
+        const { segmentId, name, description, startDate, endDate, scheduledAt } = createCampaignDto;
         // Verify segment exists and belongs to user
         const segment = await this.prisma.segment.findUnique({
             where: { id: segmentId },
@@ -42,6 +44,16 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
         if (end <= start) {
             throw new common_1.BadRequestException('End date must be after start date');
         }
+        // Parse scheduledAt if provided
+        let scheduled = null;
+        let status = 'draft';
+        if (scheduledAt) {
+            scheduled = new Date(scheduledAt);
+            if (scheduled <= new Date()) {
+                throw new common_1.BadRequestException('Scheduled time must be in the future');
+            }
+            status = 'draft'; // Will be set to 'scheduled' after flow is deployed
+        }
         // Create campaign
         const campaign = await this.prisma.campaign.create({
             data: {
@@ -51,7 +63,10 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
                 description,
                 startDate: start,
                 endDate: end,
+                scheduledAt: scheduled,
+                status,
                 totalUsersTargeted: segment.totalRecords,
+                totalRecipients: segment.totalRecords,
             },
             include: {
                 segment: {
@@ -329,10 +344,10 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
                 // Don't throw - workflow is created but not activated
                 // User can manually activate in n8n or we return the test webhook URL
             }
-            // Get both production and test webhook URLs
+            // Get webhook URL - path matches what's configured in the webhook node
             const webhookPath = `campaign-${campaign.id}`;
             const webhookUrl = this.n8nApiService.getWebhookUrl(webhookPath);
-            const testWebhookUrl = webhookUrl.replace('/webhook/', '/webhook-test/');
+            this.logger.log(`Webhook URL for campaign: ${webhookUrl}`);
             // Update campaign with n8n workflow info
             const updatedCampaign = await this.prisma.campaign.update({
                 where: { id },
@@ -362,7 +377,6 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
                 n8nWorkflowId: workflowResult.id,
                 n8nWorkflowUrl: updatedCampaign.n8nWorkflowUrl,
                 webhookUrl: webhookUrl,
-                testWebhookUrl: testWebhookUrl,
                 campaign: updatedCampaign,
             };
         }
@@ -487,11 +501,235 @@ let CampaignsService = CampaignsService_1 = class CampaignsService {
             return this.n8nApiService.testConnection();
         }, 60);
     }
+    /**
+     * Get campaign progress
+     */
+    async getProgress(id, userId) {
+        const campaign = await this.findOne(id, userId);
+        const progressPercent = campaign.totalRecipients > 0
+            ? Math.round((campaign.processedCount / campaign.totalRecipients) * 100)
+            : 0;
+        // Calculate estimated completion time
+        let estimatedCompletion = null;
+        if (campaign.startedAt && campaign.processedCount > 0 && campaign.processedCount < campaign.totalRecipients) {
+            const elapsedMs = Date.now() - new Date(campaign.startedAt).getTime();
+            const msPerRecipient = elapsedMs / campaign.processedCount;
+            const remainingRecipients = campaign.totalRecipients - campaign.processedCount;
+            const remainingMs = msPerRecipient * remainingRecipients;
+            estimatedCompletion = new Date(Date.now() + remainingMs).toISOString();
+        }
+        return {
+            id: campaign.id,
+            name: campaign.name,
+            status: campaign.status,
+            executionStatus: campaign.executionStatus,
+            totalRecipients: campaign.totalRecipients,
+            processedCount: campaign.processedCount,
+            successCount: campaign.successCount,
+            failedCount: campaign.failedCount,
+            progressPercent,
+            scheduledAt: campaign.scheduledAt,
+            startedAt: campaign.startedAt,
+            completedAt: campaign.completedAt,
+            estimatedCompletion,
+        };
+    }
+    /**
+     * Pause a running campaign
+     */
+    async pauseCampaign(id, userId) {
+        const campaign = await this.findOne(id, userId);
+        if (campaign.status !== 'running') {
+            throw new common_1.BadRequestException('Only running campaigns can be paused');
+        }
+        await this.campaignExecutionProducer.pauseCampaign(id);
+        // Invalidate cache
+        await this.cacheService.del(this.cacheService.getResourceKey('campaign', id));
+        await this.cacheService.invalidateUserResource(userId, 'campaigns');
+        return { message: 'Campaign paused successfully' };
+    }
+    /**
+     * Resume a paused campaign
+     */
+    async resumeCampaign(id, userId) {
+        const campaign = await this.findOne(id, userId);
+        if (campaign.status !== 'paused') {
+            throw new common_1.BadRequestException('Only paused campaigns can be resumed');
+        }
+        await this.campaignExecutionProducer.resumeCampaign(id);
+        // Invalidate cache
+        await this.cacheService.del(this.cacheService.getResourceKey('campaign', id));
+        await this.cacheService.invalidateUserResource(userId, 'campaigns');
+        return { message: 'Campaign resumed successfully' };
+    }
+    /**
+     * Get campaign executions (individual recipient processing results)
+     */
+    async getExecutions(id, userId, options) {
+        await this.findOne(id, userId); // Verify access
+        const page = (options === null || options === void 0 ? void 0 : options.page) || 1;
+        const limit = (options === null || options === void 0 ? void 0 : options.limit) || 50;
+        const skip = (page - 1) * limit;
+        const where = { campaignId: id };
+        if (options === null || options === void 0 ? void 0 : options.status) {
+            where.status = options.status;
+        }
+        const [executions, total] = await Promise.all([
+            this.prisma.campaignExecution.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            this.prisma.campaignExecution.count({ where }),
+        ]);
+        return {
+            data: executions,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
+    }
+    /**
+     * Retry failed executions for a campaign
+     */
+    async retryFailedExecutions(id, userId) {
+        const campaign = await this.findOne(id, userId);
+        if (!campaign.n8nWorkflowId) {
+            throw new common_1.BadRequestException('Campaign does not have a deployed workflow');
+        }
+        // Get all failed executions
+        const failedExecutions = await this.prisma.campaignExecution.findMany({
+            where: {
+                campaignId: id,
+                status: 'failed',
+            },
+        });
+        if (failedExecutions.length === 0) {
+            return { message: 'No failed executions to retry', retriedCount: 0 };
+        }
+        const n8nWebhookBaseUrl = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook';
+        const webhookUrl = `${n8nWebhookBaseUrl}/campaign-${id}`;
+        // Re-queue failed executions
+        for (const execution of failedExecutions) {
+            await this.campaignExecutionProducer.addJob({
+                campaignId: id,
+                recipientEmail: execution.email,
+                recipientName: execution.name,
+                recipientData: { email: execution.email, name: execution.name },
+                webhookUrl,
+                attempt: execution.attempts + 1,
+            });
+            // Reset execution status
+            await this.prisma.campaignExecution.update({
+                where: { id: execution.id },
+                data: { status: 'pending' },
+            });
+        }
+        // Update campaign counts
+        await this.prisma.campaign.update({
+            where: { id },
+            data: {
+                processedCount: { decrement: failedExecutions.length },
+                failedCount: { decrement: failedExecutions.length },
+                status: 'running',
+                executionStatus: 'active',
+            },
+        });
+        // Invalidate cache
+        await this.cacheService.del(this.cacheService.getResourceKey('campaign', id));
+        return {
+            message: `Re-queued ${failedExecutions.length} failed executions`,
+            retriedCount: failedExecutions.length,
+        };
+    }
+    /**
+     * Schedule a campaign for execution
+     */
+    async scheduleCampaign(id, userId, scheduledAt) {
+        const campaign = await this.findOne(id, userId);
+        if (!['draft', 'failed'].includes(campaign.status)) {
+            throw new common_1.BadRequestException('Only draft or failed campaigns can be scheduled');
+        }
+        if (!campaign.n8nWorkflowId) {
+            throw new common_1.BadRequestException('Deploy the flow before scheduling the campaign');
+        }
+        const scheduled = new Date(scheduledAt);
+        if (scheduled <= new Date()) {
+            throw new common_1.BadRequestException('Scheduled time must be in the future');
+        }
+        const updatedCampaign = await this.prisma.campaign.update({
+            where: { id },
+            data: {
+                scheduledAt: scheduled,
+                status: 'scheduled',
+                // Reset progress if retrying
+                processedCount: 0,
+                successCount: 0,
+                failedCount: 0,
+                startedAt: null,
+                completedAt: null,
+            },
+            include: {
+                segment: {
+                    select: {
+                        id: true,
+                        name: true,
+                        totalRecords: true,
+                    },
+                },
+            },
+        });
+        // Invalidate cache
+        await this.cacheService.del(this.cacheService.getResourceKey('campaign', id));
+        await this.cacheService.invalidateUserResource(userId, 'campaigns');
+        await this.cacheService.del(this.cacheService.getUserKey(userId, 'campaign', 'stats'));
+        return updatedCampaign;
+    }
+    /**
+     * Run campaign immediately (manual trigger)
+     */
+    async runCampaignNow(id, userId) {
+        const campaign = await this.findOne(id, userId);
+        if (!['draft', 'scheduled', 'failed'].includes(campaign.status)) {
+            throw new common_1.BadRequestException(`Cannot run campaign in ${campaign.status} status`);
+        }
+        if (!campaign.n8nWorkflowId) {
+            throw new common_1.BadRequestException('Deploy the flow before running the campaign');
+        }
+        // Set to scheduled with immediate time, then trigger
+        await this.prisma.campaign.update({
+            where: { id },
+            data: {
+                scheduledAt: new Date(),
+                status: 'scheduled',
+                processedCount: 0,
+                successCount: 0,
+                failedCount: 0,
+                startedAt: null,
+                completedAt: null,
+            },
+        });
+        // Start the campaign immediately
+        const result = await this.campaignExecutionProducer.startCampaign(id);
+        // Invalidate cache
+        await this.cacheService.del(this.cacheService.getResourceKey('campaign', id));
+        await this.cacheService.invalidateUserResource(userId, 'campaigns');
+        return result;
+    }
+    /**
+     * Get queue statistics
+     */
+    async getQueueStats() {
+        return this.campaignExecutionProducer.getQueueStats();
+    }
 };
 exports.CampaignsService = CampaignsService;
 exports.CampaignsService = CampaignsService = CampaignsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [cache_service_1.CacheService,
         n8n_api_service_1.N8nApiService,
-        n8n_converter_service_1.N8nConverterService])
+        n8n_converter_service_1.N8nConverterService,
+        campaign_execution_producer_1.CampaignExecutionProducer])
 ], CampaignsService);

@@ -45,3 +45,13 @@ __decorate([
     (0, class_validator_1.IsDateString)(),
     __metadata("design:type", String)
 ], CreateCampaignDto.prototype, "endDate", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Scheduled date and time to start the campaign',
+        example: '2025-12-01T09:00:00Z',
+        required: false
+    }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsDateString)(),
+    __metadata("design:type", String)
+], CreateCampaignDto.prototype, "scheduledAt", void 0);

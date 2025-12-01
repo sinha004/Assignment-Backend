@@ -63,14 +63,34 @@ let CacheService = class CacheService {
      * Delete multiple keys matching a pattern
      */
     async delPattern(pattern) {
+        var _a, _b, _c, _d;
         try {
-            // For cache-manager v6, we need to access the underlying store
+            // For cache-manager v6 with ioredis, we need to access the underlying store
             const cacheStore = this.cacheManager;
-            if (cacheStore.store && cacheStore.store.client && typeof cacheStore.store.client.keys === 'function') {
-                const keys = await cacheStore.store.client.keys(pattern);
+            // Try different ways to access the Redis client
+            let client = null;
+            if ((_a = cacheStore.store) === null || _a === void 0 ? void 0 : _a.client) {
+                client = cacheStore.store.client;
+            }
+            else if ((_c = (_b = cacheStore.stores) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.client) {
+                client = cacheStore.stores[0].client;
+            }
+            else if ((_d = cacheStore.store) === null || _d === void 0 ? void 0 : _d.getClient) {
+                client = cacheStore.store.getClient();
+            }
+            if (client && typeof client.keys === 'function') {
+                const keys = await client.keys(pattern);
                 if (keys && keys.length > 0) {
+                    console.log(`Deleting ${keys.length} cache keys matching pattern: ${pattern}`);
                     await Promise.all(keys.map((key) => this.cacheManager.del(key)));
                 }
+            }
+            else {
+                // Fallback: if we can't access the client for pattern matching,
+                // just delete the specific key without the wildcard
+                const specificKey = pattern.replace('*', '');
+                console.log(`Pattern delete not available, deleting specific key: ${specificKey}`);
+                await this.cacheManager.del(specificKey);
             }
         }
         catch (error) {
@@ -123,6 +143,11 @@ let CacheService = class CacheService {
      * Invalidate cache for a specific user resource
      */
     async invalidateUserResource(userId, resource) {
+        // First try to delete the exact key (for list endpoints)
+        const exactKey = this.getUserKey(userId, resource);
+        console.log(`Invalidating cache for user ${userId} resource ${resource}, key: ${exactKey}`);
+        await this.del(exactKey);
+        // Also try pattern-based deletion for related keys
         await this.delPattern(`user:${userId}:${resource}*`);
     }
 };

@@ -97,10 +97,26 @@ let N8nApiService = N8nApiService_1 = class N8nApiService {
     async activateWorkflow(workflowId) {
         try {
             this.logger.log(`Activating workflow: ${workflowId}`);
+            // First, get the current workflow
+            const workflow = await this.getWorkflow(workflowId);
+            if (!workflow) {
+                throw new Error(`Workflow ${workflowId} not found`);
+            }
+            // Try the new API first (PATCH with active: true)
+            try {
+                await this.httpClient.patch(`/workflows/${workflowId}`, { active: true });
+                this.logger.log(`Workflow activated via PATCH: ${workflowId}`);
+                return;
+            }
+            catch (patchError) {
+                this.logger.debug(`PATCH activation failed, trying POST: ${patchError.message}`);
+            }
+            // Fallback to older API (POST /activate)
             await this.httpClient.post(`/workflows/${workflowId}/activate`);
-            this.logger.log(`Workflow activated successfully: ${workflowId}`);
+            this.logger.log(`Workflow activated via POST: ${workflowId}`);
         }
         catch (error) {
+            this.logger.error(`Failed to activate workflow ${workflowId}: ${error.message}`);
             this.handleApiError(error, 'activate workflow');
         }
     }
@@ -230,10 +246,12 @@ let N8nApiService = N8nApiService_1 = class N8nApiService {
         }
     }
     /**
-     * Get webhook URL for a campaign
+     * Get webhook URL for a path
+     * @param path The webhook path (e.g., 'campaign-xxxx')
      */
-    getWebhookUrl(campaignId) {
-        return `${this.webhookBaseUrl}/campaign-${campaignId}`;
+    getWebhookUrl(path) {
+        // Don't add campaign- prefix here, it should already be in the path
+        return `${this.webhookBaseUrl}/${path}`;
     }
     /**
      * Handle API errors
