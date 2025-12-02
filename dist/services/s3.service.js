@@ -17,10 +17,10 @@ const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 let S3Service = class S3Service {
     constructor(configService) {
         this.configService = configService;
-        const region = this.configService.get('AWS_REGION');
-        const accessKeyId = this.configService.get('AWS_ACCESS_KEY_ID');
-        const secretAccessKey = this.configService.get('AWS_SECRET_ACCESS_KEY');
-        const bucketName = this.configService.get('AWS_S3_BUCKET_NAME');
+        const region = this.configService.get('Amazon_REGION');
+        const accessKeyId = this.configService.get('Amazon_ACCESS_KEY_ID');
+        const secretAccessKey = this.configService.get('Amazon_SECRET_ACCESS_KEY');
+        const bucketName = this.configService.get('Amazon_S3_BUCKET_NAME');
         if (!region || !accessKeyId || !secretAccessKey || !bucketName) {
             throw new Error('AWS configuration is missing. Please check your .env file.');
         }
@@ -53,7 +53,7 @@ let S3Service = class S3Service {
             });
             await this.s3Client.send(command);
             // Construct S3 URL
-            const region = this.configService.get('AWS_REGION');
+            const region = this.configService.get('Amazon_REGION');
             const s3Url = `https://${this.bucketName}.s3.${region}.amazonaws.com/${s3Key}`;
             return { s3Url, s3Key };
         }
@@ -107,7 +107,7 @@ let S3Service = class S3Service {
      * @returns Direct S3 URL
      */
     getFileUrl(s3Key) {
-        const region = this.configService.get('AWS_REGION');
+        const region = this.configService.get('Amazon_REGION');
         return `https://${this.bucketName}.s3.${region}.amazonaws.com/${s3Key}`;
     }
 };

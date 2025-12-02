@@ -32,12 +32,12 @@ export class CampaignExecutionProducer {
     this.prisma = new PrismaClient();
     
     // Initialize S3 client
-    this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME') || '';
+    this.bucketName = this.configService.get<string>('Amazon_S3_BUCKET_NAME') || '';
     this.s3Client = new S3Client({
-      region: this.configService.get<string>('AWS_REGION'),
+      region: this.configService.get<string>('Amazon_REGION'),
       credentials: {
-        accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '',
+        accessKeyId: this.configService.get<string>('Amazon_ACCESS_KEY_ID') || '',
+        secretAccessKey: this.configService.get<string>('Amazon_SECRET_ACCESS_KEY') || '',
       },
     });
   }

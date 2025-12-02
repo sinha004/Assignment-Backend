@@ -30,12 +30,12 @@ let CampaignExecutionProducer = CampaignExecutionProducer_1 = class CampaignExec
         this.logger = new common_1.Logger(CampaignExecutionProducer_1.name);
         this.prisma = new client_1.PrismaClient();
         // Initialize S3 client
-        this.bucketName = this.configService.get('AWS_S3_BUCKET_NAME') || '';
+        this.bucketName = this.configService.get('Amazon_S3_BUCKET_NAME') || '';
         this.s3Client = new client_s3_1.S3Client({
-            region: this.configService.get('AWS_REGION'),
+            region: this.configService.get('Amazon_REGION'),
             credentials: {
-                accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID') || '',
-                secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY') || '',
+                accessKeyId: this.configService.get('Amazon_ACCESS_KEY_ID') || '',
+                secretAccessKey: this.configService.get('Amazon_SECRET_ACCESS_KEY') || '',
             },
         });
     }
