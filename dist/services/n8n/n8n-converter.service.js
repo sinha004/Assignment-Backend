@@ -273,8 +273,8 @@ return items;`;
     }
     /**
      * Convert template variables to n8n expression format
-     * Handles {{variable}} -> ={{ $json.body.variable }}
-     * n8n webhook places POST body data under $json.body
+     * Handles {{variable}} -> ={{ $('Webhook Trigger').item.json.body.variable }}
+     * This format ensures data persists through Wait nodes by referencing the original trigger
      */
     convertToN8nExpression(text) {
         if (!text || typeof text !== 'string')
@@ -284,9 +284,9 @@ return items;`;
         if (!hasVariables) {
             return text;
         }
-        // Replace all {{variableName}} with {{ $json.body.variableName }}
-        // n8n webhook receives POST data under $json.body
-        let result = text.replace(/\{\{([\w.]+)\}\}/g, '{{ $json.body.$1 }}');
+        // Replace all {{variableName}} with {{ $('Webhook Trigger').item.json.body.variableName }}
+        // Using $('Webhook Trigger') reference ensures data persists through Wait nodes
+        let result = text.replace(/\{\{([\w.]+)\}\}/g, "{{ $('Webhook Trigger').item.json.body.$1 }}");
         // Wrap entire string as expression if it contains variables
         // n8n expressions start with =
         if (result !== text) {
