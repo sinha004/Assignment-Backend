@@ -9,7 +9,7 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     // Enable CORS for frontend
     app.enableCors({
-        origin: 'http://localhost:3000', // Next.js frontend URL
+        origin: ['http://localhost:3000', 'https://ckgik5oh3l.execute-api.us-east-1.amazonaws.com', 'https://campaignify-frontend.vercel.app'],
         credentials: true,
     });
     // Global validation pipe
